@@ -8,8 +8,13 @@ import static ai.akhil.market.MarketModels.*;
 @RequestMapping("/api")
 public class MarketController {
     private final MarketService service;
+    private final SecService sec;
     private final com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
-    public MarketController(MarketService service) { this.service = service; }
+    public MarketController(MarketService service, SecService sec) { this.service = service; this.sec = sec; }
+    @GetMapping("/stocks/{symbol}/results") public SecService.Results results(@PathVariable String symbol,
+            @RequestParam(defaultValue="annual") String frequency, @RequestParam(defaultValue="income") String statement) {
+        return sec.results(service.symbol(symbol), frequency, statement);
+    }
     @GetMapping("/health") public Map<String, String> health() {
         return Map.of("status", "UP", "provider", "Yahoo Finance", "priceCache", "5 minutes by default", "dataMode", "external");
     }

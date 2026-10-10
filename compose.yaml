@@ -5,4 +5,5 @@ services:
       - "127.0.0.1:8080:8080"
     environment:
       MARKET_CACHE_SECONDS: 300
+      SEC_USER_AGENT: ${SEC_USER_AGENT:-akhil.ai research github.com/akhil626626/akhilai}
     restart: unless-stopped

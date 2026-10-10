@@ -1,5 +1,6 @@
 export type Metric = { key:string; label:string; kind:'money'|'shares'|'eps'|'percent'; emphasis?:boolean; derived?:string };
-export type Period = {date:string;currency:string;values:Record<string,number>};
+export type Evidence = {start:string|null;filed:string;form:string;accession:string;concept:string;url:string};
+export type Period = {date:string;currency:string;values:Record<string,number>;evidence?:Record<string,Evidence>};
 export const INCOME_METRICS:Metric[] = [
  {key:'revenue',label:'Total Revenues',kind:'money',emphasis:true},
  {key:'revenueGrowth',label:'Total Revenues %Chg',kind:'percent',derived:'Year-over-year revenue growth; requires consecutive fiscal years in the same currency.'},
@@ -25,17 +26,28 @@ export const INCOME_METRICS:Metric[] = [
  {key:'ebitda',label:'EBITDA',kind:'money',emphasis:true},
  {key:'effectiveTaxRate',label:'Effective Tax Rate',kind:'percent',derived:'Income tax provision / income before tax × 100.'}
 ];
+export const BALANCE_METRICS:Metric[] = [
+ ['cash','Cash & Cash Equivalents'],['shortTermInvestments','Short-Term Investments'],['receivables','Accounts Receivable'],['inventory','Inventory'],['currentAssets','Current Assets'],['propertyPlantEquipment','Property, Plant & Equipment'],['goodwill','Goodwill'],['assets','Total Assets'],['accountsPayable','Accounts Payable'],['currentLiabilities','Current Liabilities'],['longTermDebt','Long-Term Debt (Noncurrent)'],['liabilities','Total Liabilities'],['equity','Stockholders’ Equity'],['retainedEarnings','Retained Earnings']
+].map(([key,label])=>({key,label,kind:'money',emphasis:['assets','liabilities','equity'].includes(key)}));
+export const CASHFLOW_METRICS:Metric[] = [
+ ['operatingCashFlow','Operating Cash Flow'],['capitalExpenditure','Capital Expenditure (Outflow)'],['freeCashFlow','Free Cash Flow'],['investingCashFlow','Investing Cash Flow'],['financingCashFlow','Financing Cash Flow'],['dividendsPaid','Dividends Paid (Outflow)'],['shareRepurchases','Share Repurchases (Outflow)'],['stockCompensation','Stock-Based Compensation'],['depreciation','Depreciation, Depletion & Amortization']
+].map(([key,label])=>({key,label,kind:'money',emphasis:key.endsWith('CashFlow'),derived:key==='freeCashFlow'?'Operating cash flow minus capital expenditure, for matching reported periods.':undefined}));
 export function metricValue(metric:Metric, period:Period, periods:Period[]):number|null {
  const v=period.values;
  if(v[metric.key]!=null && Number.isFinite(v[metric.key])) return v[metric.key];
  const ratio=(a:number|undefined,b:number|undefined)=> a!=null&&b!=null&&b!==0 ? a/b*100 : null;
  switch(metric.key){
+  case 'freeCashFlow': {
+   const a=period.evidence?.['operatingCashFlow'], b=period.evidence?.['capitalExpenditure'];
+   if(a && b && (a.start!==b.start || a.accession!==b.accession))return null;
+   return v['operatingCashFlow']!=null&&v['capitalExpenditure']!=null?v['operatingCashFlow']-v['capitalExpenditure']:null;
+  }
   case 'grossMargin': return ratio(v['grossProfit'],v['revenue']);
   case 'operatingMargin': return ratio(v['operatingIncome'],v['revenue']);
   case 'effectiveTaxRate': return ratio(v['taxProvision'],v['pretaxIncome']);
   case 'nonOperatingIncome':case 'totalNonOperatingIncome':return v['pretaxIncome']!=null&&v['operatingIncome']!=null ? v['pretaxIncome']-v['operatingIncome']:null;
   case 'revenueGrowth':{
-   const prev=periods.filter(p=>p.date<period.date).sort((a,b)=>a.date.localeCompare(b.date)).at(-1);
+   const prev=periods.filter(p=>{const days=(Date.parse(period.date)-Date.parse(p.date))/86400000;return days>=330&&days<=400;}).sort((a,b)=>Math.abs((Date.parse(period.date)-Date.parse(a.date))/86400000-365)-Math.abs((Date.parse(period.date)-Date.parse(b.date))/86400000-365))[0];
    if(!prev||prev.currency!==period.currency)return null;
    const days=(Date.parse(period.date)-Date.parse(prev.date))/86400000;
    if(days<330||days>400||!prev.values['revenue']||prev.values['revenue']<0||v['revenue']==null)return null;
@@ -44,13 +56,13 @@ export function metricValue(metric:Metric, period:Period, periods:Period[]):numb
   default:return null;
  }
 }
-export function formatMetric(metric:Metric,period:Period,periods:Period[],commonSize:boolean):string {
+export function formatMetric(metric:Metric,period:Period,periods:Period[],commonSize:boolean,baseKey = 'revenue'):string {
  let value=metricValue(metric,period,periods);
  if(value==null||!Number.isFinite(value))return '—';
  const asPercent=metric.kind==='percent'||(commonSize&&metric.kind==='money');
  if(commonSize&&metric.kind==='money'){
-  if(!period.values['revenue'])return '—';
-  value=value/period.values['revenue']*100;
+  if(!period.values[baseKey])return '—';
+  value=value/period.values[baseKey]*100;
  }
  if(asPercent)return new Intl.NumberFormat('en-US',{maximumFractionDigits:1}).format(value)+'%';
  return new Intl.NumberFormat('en-US',{minimumFractionDigits:metric.kind==='eps'?2:0,maximumFractionDigits:metric.kind==='eps'?2:0}).format(metric.kind==='eps'?value:value/1e6);

@@ -1,6 +1,6 @@
 # akhil.ai
 
-Investment research app built with **Angular 21**, **Java 17**, and **Spring Boot 3.5**. The browser calls the Java API, which fetches real Yahoo Finance prices, history, search results, and annual financials. Connected mode uses provider data. The financials page also offers an explicitly labeled, user-provided Microsoft reference statement for 2017–2026; it is not independently verified.
+Investment research app built with **Angular 21**, **Java 17**, and **Spring Boot 3.5**. The browser calls the Java API for SEC EDGAR company results and Yahoo Finance prices, history, search results, and optional annual income statements. Connected mode uses provider data. The financials page also offers an explicitly labeled, user-provided Microsoft reference statement for 2017–2026; it is not independently verified.
 
 ## Run the full application
 
@@ -49,6 +49,24 @@ Open http://localhost:4200. Angular proxies `/api` to the Java backend on port 8
 - Annual net margin calculated from reported annual revenue and net income.
 - Browser-saved watchlists (up to 20 symbols), gain/loss filters, sorting, CSV export, and dark mode.
 - Explicit loading, missing-data, rate-limit, and provider-failure states. Missing values remain missing, not zero.
+
+## SEC company results
+
+The default financials source is SEC EDGAR. The server resolves US ticker symbols using SEC's company directory and downloads the company's XBRL company-facts history. Select income statement, balance sheet, or cash flow, and annual or quarterly periods. Each reported value links to its source filing and exposes its filing date, concept, and period start. CSV exports include filing links. A source-filings panel lists the filings used by the selected statement dataset.
+
+**Current live verification limitation:** SEC returned HTTP 403 from the development machine on October 10, 2026. The integration is tested against a local SEC-format fixture, but a live SEC response has not been verified. The UI reports this denial without replacing it with reference data. Yahoo remains a separately selectable source.
+
+Set `SEC_USER_AGENT` to your application name and contact email in the server environment, for example `akhil.ai research contact@example.com` (replace the example). Keep personal contact configuration out of Git. SEC may still deny the hosting network; deploy on a permitted server if needed. Official documentation: https://www.sec.gov/search-filings/edgar-application-programming-interfaces
+
+Coverage is deliberately explicit:
+- Standard US-GAAP, entity-wide USD facts from 10-K/10-Q and amendments; foreign issuers reporting IFRS, custom concepts, business segments, earnings calendars, guidance, and analyst estimates are not covered.
+- All available mapped historical periods are returned. Annual durations are 330–400 days from annual filings; quarterly durations are 75–105 days. Fiscal dates are preserved. Balance-sheet values are instantaneous at relevant fiscal endpoints.
+- Quarterly results include only directly reported quarters. Q4 and quarterly cash flow may be missing: SEC cash-flow disclosures are commonly cumulative year-to-date. The app never relabels six/nine-month values as a quarter or subtracts incompatible filings.
+- Latest filed values are chosen per metric, including amendments; this is not a point-in-time backtesting dataset. Every reported cell retains its source. EBITDA and unmapped metrics stay blank.
+- Revenue growth compares to the corresponding period roughly a year earlier. Balance-sheet common size uses assets, cash-flow common size uses operating cash flow, income common size uses revenue. Free cash flow is calculated only from operating cash flow and capex with matching filing contexts.
+- SEC requests are serialized to at most four per second and successful company-facts responses are cached for one hour (64 entries, memory only). Refresh uses that cache. Watchlists persist in this browser; background alerts and server-side historical snapshots are not implemented.
+
+`GET /api/stocks/MSFT/results?frequency=annual&statement=income` accepts `annual|quarterly` and `income|balance|cashflow`. Test/deployment overrides: `sec.data-url`, `sec.ticker-url`, `sec.user-agent` via Spring properties. The contact header also accepts the environment variable `SEC_USER_AGENT`.
 
 ## Data connection
 

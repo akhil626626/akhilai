@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, Subscription, catchError, distinctUntilChanged, forkJoin, map, of, switchMap, timer } from 'rxjs';
-import { INCOME_METRICS, Metric, Period, formatMetric } from './financial-metrics';
+import { INCOME_METRICS, BALANCE_METRICS, CASHFLOW_METRICS, Metric, Period, formatMetric } from './financial-metrics';
 import { MarketService, Company, Quote, History, Financials, errorMessage } from './market.service';
 
 type Row = { symbol: string; quote: Quote | null; error: string | null; loading: boolean };
@@ -41,15 +41,21 @@ export class AppComponent {
   hoverPoint = signal<Point | null>(null);
   ranges = [{ value:'1mo', label:'1M' },{ value:'3mo', label:'3M' },{ value:'6mo', label:'6M' },{ value:'1y', label:'1Y' },{ value:'5y', label:'5Y' }];
   toggleBoolean = (value:boolean) => !value;
-  financialMetrics = INCOME_METRICS;
-  financialSource = signal('reference');
+  statement = signal('income');
+  frequency = signal('annual');
+  statementTitle = computed(()=>this.statement()==='balance'?'Balance Sheet':this.statement()==='cashflow'?'Cash Flow Statement':'Income Statement');
+  financialMetrics = computed(()=>this.statement()==='balance'?BALANCE_METRICS:this.statement()==='cashflow'?CASHFLOW_METRICS:INCOME_METRICS);
+  commonSizeBase = computed(()=>this.statement()==='balance'?'assets':this.statement()==='cashflow'?'operatingCashFlow':'revenue');
+  setStatement(value:string) {this.statement.set(value);this.commonSize.set(false);this.resetMetrics();this.loadCompany();}
+  setFrequency(value:string) {this.frequency.set(value);this.fromDate.set('');this.toDate.set('');this.loadCompany();}
+  financialSource = signal('sec');
   metricQuery = signal('');
   commonSize = signal(false);
   newestFirst = signal(true);
   fromDate = signal('');
   toDate = signal('');
   selectedMetrics = signal(INCOME_METRICS.map(m => m.key));
-  filteredMetrics = computed(() => this.financialMetrics.filter(m => m.label.toLowerCase().includes(this.metricQuery().toLowerCase())));
+  filteredMetrics = computed(() => this.financialMetrics().filter(m => m.label.toLowerCase().includes(this.metricQuery().toLowerCase())));
   visibleMetrics = computed(() => this.filteredMetrics().filter(m => this.selectedMetrics().includes(m.key)));
   allPeriods = computed(() => [...(this.financials()?.periods ?? [])].sort((a,b) => a.date.localeCompare(b.date)));
   statementPeriods = computed(() => {
@@ -57,10 +63,10 @@ export class AppComponent {
     return this.newestFirst() ? p.reverse() : p;
   });
   invalidDates = computed(() => !!this.fromDate() && !!this.toDate() && this.fromDate()>this.toDate());
-  setFinancialSource(source:string) { this.financialSource.set(source); this.fromDate.set('');this.toDate.set('');this.loadCompany(); }
+  setFinancialSource(source:string) { this.financialSource.set(source);if(source!=='sec'){this.statement.set('income');this.frequency.set('annual');this.resetMetrics();} this.fromDate.set('');this.toDate.set('');this.loadCompany(); }
   toggleMetric(key:string) { this.selectedMetrics.update(keys => keys.includes(key) ? keys.filter(k=>k!==key) : [...keys,key]); }
-  resetMetrics() { this.metricQuery.set('');this.selectedMetrics.set(this.financialMetrics.map(m=>m.key)); }
-  statementValue(metric:Metric,period:Period) { return formatMetric(metric,period,this.allPeriods(),this.commonSize()); }
+  resetMetrics() { this.metricQuery.set('');this.selectedMetrics.set(this.financialMetrics().map(m=>m.key)); }
+  statementValue(metric:Metric,period:Period) { return formatMetric(metric,period,this.allPeriods(),this.commonSize(),this.commonSizeBase()); }
   headings: Record<View, string> = { overview:'Market overview', watchlist:'Your watchlist', screener:'Company explorer', financials:'Company financials' };
   indexNames: Record<string, string> = { '^GSPC':'S&P 500', '^IXIC':'NASDAQ Composite', '^DJI':'Dow Jones', '^VIX':'VIX' };
   quote = computed(() => this.history()?.quote ?? null);
@@ -112,7 +118,7 @@ export class AppComponent {
   setView(view:View) { this.view.set(view); }
   onSearch(value:string) { this.query=value; this.results.set([]); this.searched.set(false); this.searchTerms.next(value); }
   selectCompany(symbol:string) {
-    if(symbol!==this.symbol()){this.financialSource.set('yahoo');this.fromDate.set('');this.toDate.set('');}
+    if(symbol!==this.symbol()){if(this.financialSource()==='reference')this.financialSource.set('sec');this.fromDate.set('');this.toDate.set('');}
     this.symbol.set(symbol); this.query=''; this.results.set([]); this.searched.set(false); this.searchTerms.next(''); this.loadCompany();
   }
   changeRange(value:string) { this.range.set(value); this.loadCompany(); }
@@ -122,7 +128,7 @@ export class AppComponent {
     this.priceError.set(''); this.financialError.set(''); this.hoverPoint.set(null);
     this.companyRequest = forkJoin({
       history:this.api.history(this.symbol(),this.range()).pipe(map(data => ({data,error:''})),catchError(e => of({data:null,error:errorMessage(e)}))),
-      financials:this.api.financials(this.symbol(),this.financialSource()).pipe(map(data => ({data,error:''})),catchError(e => of({data:null,error:errorMessage(e)})))
+      financials:(this.financialSource()==='sec'?this.api.results(this.symbol(),this.frequency(),this.statement()):this.api.financials(this.symbol(),this.financialSource())).pipe(map(data => ({data,error:''})),catchError(e => of({data:null,error:errorMessage(e)})))
     }).subscribe(r => { this.history.set(r.history.data); this.priceError.set(r.history.error); this.financials.set(r.financials.data); this.financialError.set(r.financials.error); this.loading.set(false); });
   }
   private rowRequest(symbol:string) { return this.api.quote(symbol).pipe(map(quote => ({symbol,quote,error:null,loading:false} as Row)), catchError(e => of({symbol,quote:null,error:errorMessage(e),loading:false} as Row))); }
@@ -156,7 +162,7 @@ export class AppComponent {
     let rows:(string|number)[][];
     if (this.view()==='financials') {
       const periods=this.statementPeriods();
-      rows=[['Source',this.financials()?.source??''],['Units',this.commonSize()?'Monetary values as % of revenue; shares in millions; EPS per share':'Monetary values and shares in millions; EPS per share'],['Metric',...periods.map(p=>`${p.date} (${p.currency})`)],...this.visibleMetrics().map(m=>[m.label,...periods.map(p=>this.statementValue(m,p))])];
+      rows=[['Source',this.financials()?.source??''],['Statement',this.statementTitle(),this.frequency()],['Coverage',this.financials()?.coverage??''],['Units',this.commonSize()?`Monetary values as % of ${this.commonSizeBase()}; shares in millions; EPS per share`:'Monetary values and shares in millions; EPS per share'],['Metric',...periods.map(p=>`${p.date} (${p.currency})`)],...this.visibleMetrics().map(m=>[m.label,...periods.map(p=>this.statementValue(m,p))]),...this.visibleMetrics().filter(m=>periods.some(p=>p.evidence?.[m.key])).map(m=>[m.label+' filing sources',...periods.map(p=>p.evidence?.[m.key]?.url??'')])];
     } else rows=[['Symbol','Company','Price','Currency','Change percent','Volume','As of','Source'],...this.visibleRows().filter(r=>r.quote).map(r=>{const q=r.quote!;return [q.symbol,q.name,q.price,q.currency,q.changePercent??'',q.volume??'',q.asOf,q.source];})];
     const csv=rows.map(row=>row.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\r\n');
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})); const a=document.createElement('a'); a.href=url;a.download=`akhil-ai-${this.view()}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);

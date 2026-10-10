@@ -5,14 +5,15 @@ export interface Company { symbol: string; name: string; exchange: string; type:
 export interface Quote { symbol: string; name: string; exchange: string; currency: string; price: number; previousClose: number | null; changePercent: number | null; asOf: string; fiftyTwoWeekHigh: number | null; fiftyTwoWeekLow: number | null; volume: number | null; source: string; fetchedAt: string }
 export interface Bar { date: string; close: number; volume: number | null }
 export interface History { quote: Quote; range: string; bars: Bar[] }
-export interface FinancialPeriod { date: string; currency: string; values: Record<string, number> }
-export interface Financials { symbol: string; source: string; sourceUrl: string | null; fetchedAt: string | null; periods: FinancialPeriod[] }
+export type FinancialPeriod = import('./financial-metrics').Period;
+export interface Financials { symbol: string; source: string; sourceUrl: string | null; fetchedAt: string | null; periods: FinancialPeriod[]; coverage?:string; name?:string; filings?:{date:string;form:string;accession:string;url:string}[] }
 @Injectable({ providedIn: 'root' })
 export class MarketService {
   private http = inject(HttpClient);
   search(q: string) { return this.http.get<{companies: Company[]}>('/api/search', { params: { q } }); }
   quote(symbol: string) { return this.http.get<Quote>(`/api/stocks/${encodeURIComponent(symbol)}/quote`); }
   history(symbol: string, range: string) { return this.http.get<History>(`/api/stocks/${encodeURIComponent(symbol)}/history`, { params: { range } }); }
+  results(symbol:string, frequency:string, statement:string) { return this.http.get<Financials>(`/api/stocks/${encodeURIComponent(symbol)}/results`,{params:{frequency,statement}}); }
   financials(symbol: string, source = 'yahoo') { return this.http.get<Financials>(`/api/stocks/${encodeURIComponent(symbol)}/financials`, {params:{source}}); }
 }
 export function errorMessage(error: unknown): string {
