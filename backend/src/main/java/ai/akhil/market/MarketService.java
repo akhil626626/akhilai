@@ -12,10 +12,25 @@ import static ai.akhil.market.MarketModels.*;
 @Service
 public class MarketService {
     private final YahooClient client;
-    private static final Map<String, String> METRICS = Map.of(
-            "annualTotalRevenue", "revenue", "annualGrossProfit", "grossProfit",
-            "annualOperatingIncome", "operatingIncome", "annualNetIncome", "netIncome",
-            "annualFreeCashFlow", "freeCashFlow");
+    private static final Map<String, String> METRICS = Map.ofEntries(
+            Map.entry("annualTotalRevenue", "revenue"),
+            Map.entry("annualCostOfRevenue", "costOfSales"),
+            Map.entry("annualGrossProfit", "grossProfit"),
+            Map.entry("annualSellingGeneralAndAdministration", "sga"),
+            Map.entry("annualResearchAndDevelopment", "researchDevelopment"),
+            Map.entry("annualOtherOperatingExpenses", "otherOperatingExpenses"),
+            Map.entry("annualOperatingIncome", "operatingIncome"),
+            Map.entry("annualPretaxIncome", "pretaxIncome"),
+            Map.entry("annualTaxProvision", "taxProvision"),
+            Map.entry("annualNetIncome", "netIncome"),
+            Map.entry("annualNetIncomeCommonStockholders", "netIncomeCommon"),
+            Map.entry("annualBasicEPS", "basicEps"),
+            Map.entry("annualDilutedEPS", "dilutedEps"),
+            Map.entry("annualBasicAverageShares", "basicShares"),
+            Map.entry("annualDilutedAverageShares", "dilutedShares"),
+            Map.entry("annualOrdinarySharesNumber", "sharesOutstanding"),
+            Map.entry("annualEBITDA", "ebitda"),
+            Map.entry("annualFreeCashFlow", "freeCashFlow"));
     public MarketService(YahooClient client) { this.client = client; }
     public String symbol(String input) {
         String symbol = input.trim().toUpperCase(Locale.ROOT);
@@ -88,7 +103,7 @@ public class MarketService {
         String symbol = symbol(input);
         // Day-based end time keeps the six-hour cache effective.
         long end = LocalDate.now(ZoneOffset.UTC).plusDays(1).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
-        long start = LocalDate.now(ZoneOffset.UTC).minusYears(6).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
+        long start = LocalDate.now(ZoneOffset.UTC).minusYears(11).atStartOfDay(ZoneOffset.UTC).toEpochSecond();
         String types = String.join(",", new TreeSet<>(METRICS.keySet()));
         var payload = client.get("/ws/fundamentals-timeseries/v1/finance/timeseries/" + encode(symbol)
                 + "?type=" + types + "&period1=" + start + "&period2=" + end, true);

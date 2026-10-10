@@ -1,6 +1,6 @@
 # akhil.ai
 
-Investment research app built with **Angular 21**, **Java 17**, and **Spring Boot 3.5**. The browser calls the Java API, which fetches real Yahoo Finance prices, history, search results, and annual financials. There is no generated or hard-coded financial data in the application.
+Investment research app built with **Angular 21**, **Java 17**, and **Spring Boot 3.5**. The browser calls the Java API, which fetches real Yahoo Finance prices, history, search results, and annual financials. Connected mode uses provider data. The financials page also offers an explicitly labeled, user-provided Microsoft reference statement for 2017–2026; it is not independently verified.
 
 ## Run the full application
 
@@ -43,7 +43,9 @@ Open http://localhost:4200. Angular proxies `/api` to the Java backend on port 8
 - Provider-backed company and ticker search, including equities, ETFs, and indices.
 - Actual daily close charts, selectable ranges, dates, volume, and daily price changes.
 - S&P 500, NASDAQ Composite, Dow Jones, and VIX market cards.
-- Annual revenue, gross profit, operating income, net income, and free cash flow, joined by fiscal year-end date and reported currency.
+- A detailed 23-row income statement with revenue, costs, SG&A, R&D, operating profit, pretax income, tax, net income, EPS, shares, EBITDA, and calculated margins. Provider availability varies by metric.
+- Search and select metrics, filter fiscal dates, reverse column order, and switch monetary rows to common-size percentages of revenue.
+- Amounts and shares display in millions; EPS stays per share and ratios stay percentages. CSV export follows the selected dates, metrics, order, and units.
 - Annual net margin calculated from reported annual revenue and net income.
 - Browser-saved watchlists (up to 20 symbols), gain/loss filters, sorting, CSV export, and dark mode.
 - Explicit loading, missing-data, rate-limit, and provider-failure states. Missing values remain missing, not zero.
@@ -64,7 +66,7 @@ Successful prices/search responses are cached for 5 minutes; financials for 6 ho
 | `GET /api/search?q=Apple` | Provider-backed symbol search |
 | `GET /api/stocks/AAPL/quote` | Latest daily bar with previous close, date, currency and source |
 | `GET /api/stocks/AAPL/history?range=1y` | History; ranges: `1mo`, `3mo`, `6mo`, `1y`, `5y` |
-| `GET /api/stocks/AAPL/financials` | Annual financial metrics by fiscal year-end |
+| `GET /api/stocks/AAPL/financials` | Annual financial metrics by fiscal year-end (Yahoo) |
 
 `400` means invalid input, `404` means unavailable data, `429` means provider rate limiting, and `502` means provider failure. No secrets are sent to or stored in the browser.
 
@@ -77,11 +79,14 @@ Successful prices/search responses are cached for 5 minutes; financials for 6 ho
 | `MARKET_CACHE_SECONDS` | `300` | Price/search cache TTL |
 | `MARKET_BASE_URL` | `https://query1.finance.yahoo.com` | Provider base URL; used by tests to inject a local mock server |
 
+The free provider currently returns roughly four annual periods even with a longer requested range. The app never fills missing years. `GET /api/stocks/MSFT/financials?source=reference` returns the ten-year statement pasted by the user, with separate attribution and no invented retrieval timestamp. Revenue growth and margins use supplied percentages in reference mode; in connected mode, they are calculated from available reported values. Non-operating income is calculated as pretax minus operating income when no direct value is present. Missing-year or cross-currency revenue growth is suppressed. The provider does not establish a fixed 15-minute quote delay, so the UI retains its accurate daily-bar/as-of labeling.
+
 ## Tests
 
 ```sh
 mvn -f backend/pom.xml test
 npm --prefix frontend run build
+npm --prefix frontend test
 ```
 
 The backend integration tests exercise the real HTTP client against a local mock provider: null daily bars, percent-change calculation, chronological financial alignment, zero versus missing values, quarterly exclusion, invalid input, search filtering, caching, rate limiting, malformed responses, and provider errors. They do not call external services.

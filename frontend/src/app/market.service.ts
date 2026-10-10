@@ -6,14 +6,14 @@ export interface Quote { symbol: string; name: string; exchange: string; currenc
 export interface Bar { date: string; close: number; volume: number | null }
 export interface History { quote: Quote; range: string; bars: Bar[] }
 export interface FinancialPeriod { date: string; currency: string; values: Record<string, number> }
-export interface Financials { symbol: string; source: string; sourceUrl: string; fetchedAt: string; periods: FinancialPeriod[] }
+export interface Financials { symbol: string; source: string; sourceUrl: string | null; fetchedAt: string | null; periods: FinancialPeriod[] }
 @Injectable({ providedIn: 'root' })
 export class MarketService {
   private http = inject(HttpClient);
   search(q: string) { return this.http.get<{companies: Company[]}>('/api/search', { params: { q } }); }
   quote(symbol: string) { return this.http.get<Quote>(`/api/stocks/${encodeURIComponent(symbol)}/quote`); }
   history(symbol: string, range: string) { return this.http.get<History>(`/api/stocks/${encodeURIComponent(symbol)}/history`, { params: { range } }); }
-  financials(symbol: string) { return this.http.get<Financials>(`/api/stocks/${encodeURIComponent(symbol)}/financials`); }
+  financials(symbol: string, source = 'yahoo') { return this.http.get<Financials>(`/api/stocks/${encodeURIComponent(symbol)}/financials`, {params:{source}}); }
 }
 export function errorMessage(error: unknown): string {
   if (error instanceof HttpErrorResponse) {

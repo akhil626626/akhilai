@@ -67,4 +67,14 @@ class MarketApiTest {
  @Test void searchFiltersUnsupportedResults() throws Exception {
   mvc.perform(get("/api/search").param("q","Apple & Co")).andExpect(status().isOk()).andExpect(jsonPath("$.companies.length()").value(1)).andExpect(jsonPath("$.companies[0].symbol").value("AAPL"));
  }
+ @Test void referenceStatementHasTenYearsAndExplicitAttribution() throws Exception {
+  mvc.perform(get("/api/stocks/MSFT/financials").param("source","reference")).andExpect(status().isOk())
+    .andExpect(jsonPath("$.periods.length()").value(10))
+    .andExpect(jsonPath("$.source").value("User-provided Microsoft statement (unverified)"))
+    .andExpect(jsonPath("$.periods[9].values.revenue").value(331839000000.0))
+    .andExpect(jsonPath("$.periods[9].values.dilutedEps").value(17.95))
+    .andExpect(jsonPath("$.periods[9].values.otherOperatingExpenses").doesNotExist());
+  mvc.perform(get("/api/stocks/AAPL/financials").param("source","reference")).andExpect(status().isBadRequest());
+  mvc.perform(get("/api/stocks/MSFT/financials").param("source","unknown")).andExpect(status().isBadRequest());
+ }
 }
