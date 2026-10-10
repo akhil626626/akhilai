@@ -1,0 +1,8 @@
+.git
+**/node_modules
+**/target
+**/dist
+**/.angular
+.env*
+*.log
+.openai

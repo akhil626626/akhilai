@@ -1,0 +1,8 @@
+services:
+  akhil-ai:
+    build: .
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      MARKET_CACHE_SECONDS: 300
+    restart: unless-stopped
